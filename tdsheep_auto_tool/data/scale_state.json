@@ -1,0 +1,10 @@
+{
+  "recommended_scale": 67,
+  "fail_count": 0,
+  "per_template": {
+    "a_5": 67,
+    "a_3": 67,
+    "a_1": 67,
+    "a_2": 67
+  }
+}
