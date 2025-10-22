@@ -10,17 +10,145 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 import json
 import time
+import pyautogui
 
 from .calc_locate import locate_on_screen, click_template
 
 # 功能：获取 assets 目录路径
-
 def get_assets_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "assets"
 
 # 新增：比例列表与持久化状态路径
 SCALES: List[int] = [50, 67, 75, 80, 90, 100, 110, 125]
 SCALE_STATE_PATH: Path = Path(__file__).resolve().parent.parent / "data" / "scale_state.json"
+
+# 基础窗口尺寸（100% 缩放时）
+BASE_WINDOW_SIZE: Tuple[int, int] = (1066, 912)
+ANCHOR_TOP_MENU_OFFSET_X_BASE: int = 1  # 100% 缩放时需向右偏移 1px
+ANCHOR_TOP_MENU_OFFSET_Y_BASE: int = 42  # 100% 缩放时需向下偏移 42px
+
+def _load_window_config() -> Dict[str, Any]:
+    """加载窗口相关配置（可选），包含锚点、偏移与红框时长。"""
+    default = {
+        "anchor": "a_2",            # 以 a_2 为左上角菜单锚点（你提供的 a_2_100.png）
+        "anchor_offset": [0, 0],     # 若锚点不在窗口正左上，可在此配置校正
+        "base_size": [BASE_WINDOW_SIZE[0], BASE_WINDOW_SIZE[1]],
+        "frame_duration_sec": 5.0,
+    }
+    try:
+        project_root = Path(__file__).resolve().parent.parent.parent
+        cfg_path = project_root / "config.json"
+        if not cfg_path.exists():
+            return default
+        with cfg_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        w = data.get("window", {})
+        anchor = str(w.get("anchor", default["anchor"])).strip() or default["anchor"]
+        offs = w.get("anchor_offset", default["anchor_offset"]) or default["anchor_offset"]
+        base = w.get("base_size", default["base_size"]) or default["base_size"]
+        dur = float(w.get("frame_duration_sec", default["frame_duration_sec"]))
+        # 兜底纠偏（保持健壮）
+        if not (isinstance(base, (list, tuple)) and len(base) == 2):
+            base = default["base_size"]
+        if not (isinstance(offs, (list, tuple)) and len(offs) == 2):
+            offs = default["anchor_offset"]
+        return {
+            "anchor": anchor,
+            "anchor_offset": [int(offs[0]), int(offs[1])],
+            "base_size": [int(base[0]), int(base[1])],
+            "frame_duration_sec": dur,
+        }
+    except Exception as e:
+        print(f"[config] 读取 window 配置失败，使用默认: {e}")
+        return default
+
+
+def _clamp_scale(scale: int) -> int:
+    if scale in SCALES:
+        return scale
+    return min(SCALES, key=lambda s: abs(s - scale))
+
+
+def compute_window_geometry(matches: Dict[str, Any], recommended_scale: Optional[int]) -> Optional[Dict[str, int]]:
+    """根据锚点与比例计算游戏窗口的屏幕坐标与尺寸。"""
+    cfg = _load_window_config()
+    anchor_stem = cfg["anchor"]
+    off_x, off_y = cfg["anchor_offset"]
+    base_w, base_h = cfg["base_size"]
+
+    rec = _clamp_scale(int(recommended_scale or 100))
+    scale = rec / 100.0
+
+    anchor = matches.get(anchor_stem)
+    if not isinstance(anchor, dict):
+        print(f"[size] 缺少锚点 {anchor_stem} 的匹配结果，无法计算窗口位置")
+        return None
+
+    # 按比例缩放的偏移：用户配置的 anchor_offset 与顶部菜单基准下移 40px
+    ox = int(round(off_x * scale))
+    oy = int(round(off_y * scale))
+    menu_ox =int(round(ANCHOR_TOP_MENU_OFFSET_X_BASE * scale))
+    menu_oy = int(round(ANCHOR_TOP_MENU_OFFSET_Y_BASE * scale))
+
+    left = int(anchor.get("left", 0)) + ox + menu_ox
+    top = int(anchor.get("top", 0)) + oy + menu_oy
+    width = int(round(base_w * scale))
+    height = int(round(base_h * scale))
+
+    try:
+        sw, sh = pyautogui.size()
+        left = max(0, min(left, sw - 1))
+        top = max(0, min(top, sh - 1))
+        width = max(1, min(width, sw - left))
+        height = max(1, min(height, sh - top))
+    except Exception:
+        pass
+
+    return {"left": left, "top": top, "width": width, "height": height}
+
+
+def show_window_frame(rect: Dict[str, int], duration_sec: float = 5.0, color: str = "red", thickness: int = 4) -> None:
+    """在屏幕上以透明叠加方式展示空心红框，持续指定秒数。"""
+    try:
+        import tkinter as tk
+    except Exception as e:
+        print(f"[frame] Tkinter 不可用，无法显示红框: {e}")
+        return
+
+    root = tk.Tk()
+    root.overrideredirect(True)
+    root.attributes("-topmost", True)
+
+    transparent = "#00FF00"  # 用作整窗透明背景色
+    try:
+        root.wm_attributes("-transparentcolor", transparent)
+    except Exception:
+        # 在不支持 transparentcolor 的环境下退化为半透明整体窗口
+        root.attributes("-alpha", 0.3)
+
+    screen_w = root.winfo_screenwidth()
+    screen_h = root.winfo_screenheight()
+    root.geometry(f"{screen_w}x{screen_h}+0+0")
+
+    canvas = tk.Canvas(root, width=screen_w, height=screen_h, bg=transparent, highlightthickness=0)
+    canvas.pack()
+
+    x0 = int(rect["left"]) ; y0 = int(rect["top"]) ; x1 = x0 + int(rect["width"]) ; y1 = y0 + int(rect["height"]) 
+    canvas.create_rectangle(x0, y0, x1, y1, outline=color, width=thickness)
+
+    root.after(int(duration_sec * 1000), root.destroy)
+    root.mainloop()
+
+
+def compute_window_size_and_visualize(matches: Dict[str, Any], recommended_scale: Optional[int]) -> Optional[Dict[str, int]]:
+    """计算窗口位置并叠加空心红框 5s，返回窗口矩形。"""
+    cfg = _load_window_config()
+    rect = compute_window_geometry(matches, recommended_scale)
+    if rect is None:
+        return None
+    print(f"[size] 窗口位置: left={rect['left']}, top={rect['top']}, size={rect['width']}x{rect['height']}")
+    show_window_frame(rect, duration_sec=float(cfg.get("frame_duration_sec", 5.0)))
+    return rect
 
 
 def _clamp_scale(scale: int) -> int:

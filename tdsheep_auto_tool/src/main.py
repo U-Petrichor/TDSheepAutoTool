@@ -26,14 +26,30 @@ import time
 from pathlib import Path
 from .match import (
     detect_window_assets_a,
-    compute_window_size_placeholder,
+    compute_window_size_and_visualize,
 )
 
 USER_INFO = """
-=== 用户信息 ===
+=== === === === === === === === === === === === === === === === === === === === === === === === ===
+= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+===================================================================================================
 作者: Petrichor
-联系: A / B / C
-说明: 这是最简主框架，后续逐步加功能
+
+联系方式
+- QQ : 1841770898
+- 邮箱 : u_petrichor@163.com
+- 博客网页 : https://www.u-petrichor.top/
+- Bilibili : https://space.bilibili.com/442831003?spm_id_from=333.1007.0.0
+- Github : https://github.com/U-Petrichor
+
+说明: 
+1. 目前这个只是雏形，也是我自己边学边做，可以看到交互方式还是有点简陋，不人性化，这也是个人水平不够导致的
+2. 最新的进度会优先在博客与Github上更新，如果有看Q群也会跟大家分享最新的进度
+3. 如果你觉得有用，希望可以多多支持，比如Github点下star，博客留言，社交媒体点点关注这种TAT，这对我真的很重要
+4. 有Bug或者建议请联系我！！！
+===================================================================================================
+= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+=== === === === === === === === === === === === === === === === === === === === === === === === ===
 """
 
 
@@ -54,21 +70,23 @@ def main(argv: list[str] | None = None) -> None:
     try:
         while True:
             cmd = input("> ").strip().lower()
+            # 这个我打算作为挂机模式，后面再精修
             if cmd == "start":
                 result = detect_window_assets_a(
                     confidence=0.7,
                     grayscale=True,
                     region=None,
                 )
+                rec = result.get("recommended_scale", None)
                 if result.get("success"):
                     print("[detect] 窗口匹配完成")
-                    rec = result.get("recommended_scale", None)
                     if rec is not None:
                         print(f"[scale] 推荐比例已更新为 {rec}%")
-                    compute_window_size_placeholder(result.get("matches", {}))
+                    rect = compute_window_size_and_visualize(result.get("matches", {}), rec)
+                    if rect is None:
+                        print("[size] 窗口位置计算失败")
                 else:
                     print("[detect] 窗口匹配未完成")
-                    rec = result.get("recommended_scale", None)
                     if rec is not None:
                         print(f"[scale] 当前推荐比例为 {rec}%（匹配失败）")
             elif cmd in ("exit", "quit", "q"):
