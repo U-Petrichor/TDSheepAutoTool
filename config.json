@@ -1,0 +1,37 @@
+{
+  "loop_interval_secs": 1.5,
+  "screen_scale": 1.0,
+  "upgrade": {
+    "positions": [],
+    "template_path": null,
+    "region": null,
+    "threshold": 0.85,
+    "max_clicks_per_loop": 3
+  },
+  "next_wave": {
+    "position": null,
+    "template_path": null,
+    "region": null,
+    "threshold": 0.85,
+    "cooldown_secs": 3.0
+  },
+  "breach": {
+    "template_path": null,
+    "region": null,
+    "threshold": 0.88,
+    "check_interval_secs": 1.0
+  },
+  "restart": {
+    "close_hotkey": [
+      "alt",
+      "f4"
+    ],
+    "start_command": "",
+    "post_wait_secs": 5.0,
+    "menu_hotkeys": []
+  },
+  "diagnostics": {
+    "save_debug_images": false,
+    "debug_dir": "E:\\Github\\TDSheepAutoTool\\debug"
+  }
+}
