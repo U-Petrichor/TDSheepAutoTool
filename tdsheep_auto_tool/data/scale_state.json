@@ -1,6 +1,6 @@
 {
   "recommended_scale": 80,
-  "fail_count": 0,
+  "fail_count": 1,
   "per_template": {
     "a_5": 80,
     "a_3": 80,

@@ -69,24 +69,44 @@ def generate_scaled_variants(base_path: Path, scales: List[int]) -> None:
         print(f"[gen] {out_path.name} ({scaled.shape[1]}x{scaled.shape[0]})")
 
 
-def generate_series_a(scales: List[int] = SCALES) -> None:
-    assets_a = get_assets_dir() / 'a'
-    count_src = 0
-    count_out = 0
-    for i in range(1, 7):
-        base = assets_a / f"a_{i}.png"
-        if not base.exists():
-            print(f"[miss] 未找到源文件: {base}")
-            continue
-        count_src += 1
-        generate_scaled_variants(base, scales)
-        count_out += len(scales)
-    print(f"\n[done] 源文件: {count_src}，生成文件: {count_out}")
+def process_directory(dir_path: Path, scales: List[int]) -> None:
+    """递归处理目录下的所有 PNG 图片（跳过已生成的缩放版本）。"""
+    if not dir_path.exists():
+        print(f"[skip] 目录不存在: {dir_path}")
+        return
 
+    # 获取所有 png 文件
+    for file_path in dir_path.glob("*.png"):
+        # 跳过文件名中包含 _数字.png 的文件（认为是已生成的缩放图）
+        # 简单判断：检查最后一部分是否为 _数字
+        stem = file_path.stem
+        parts = stem.split('_')
+        if len(parts) > 1 and parts[-1].isdigit() and int(parts[-1]) in scales:
+            continue
+        
+        print(f"[proc] 处理原图: {file_path.name}")
+        generate_scaled_variants(file_path, scales)
 
 def main() -> None:
-    print("[scale] 生成 a_1..a_6 的多尺度版本 -> assets/a")
-    generate_series_a()
+    print("[scale] 开始批量生成多尺度图片...")
+    assets_dir = get_assets_dir()
+    
+    # 需要处理的子文件夹列表
+    target_dirs = [
+        "a", 
+        "page_home", 
+        "page_frontline", 
+        "page_defenseline", 
+        "page_wolfpack",
+        "auto_arena"
+    ]
+    
+    for d in target_dirs:
+        p = assets_dir / d
+        print(f"\n--- Scanning {d} ---")
+        process_directory(p, SCALES)
+        
+    print("\n[done] 所有任务完成")
 
 
 if __name__ == '__main__':

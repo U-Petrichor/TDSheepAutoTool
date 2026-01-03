@@ -24,10 +24,11 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from .match import (
+from .window import (
     detect_window_assets_a,
     compute_window_size_and_visualize,
 )
+from .auto_arena import run_auto_arena
 
 USER_INFO = """
 === === === === === === === === === === === === === === === === === === === === === === === === ===
@@ -38,7 +39,6 @@ USER_INFO = """
 联系方式
 - QQ : 1841770898
 - 邮箱 : u_petrichor@163.com
-- 博客网页 : https://www.u-petrichor.top/
 - Bilibili : https://space.bilibili.com/442831003?spm_id_from=333.1007.0.0
 - Github : https://github.com/U-Petrichor
 
@@ -65,13 +65,16 @@ def main(argv: list[str] | None = None) -> None:
     # TODO: 在此添加入口参数判断或前置校验
 
     # 等待用户输入后再开始检测窗口
+    # 这里其实应该做进一步修改，如果想要实现完全的自动化，需要检测多个窗口
     print("脚本启动成功，欢迎使用 Petrichor 的工具，喜欢的话还请多多支持")
-    print("请输入指令：start 开始检测窗口，exit 退出程序\n")
+    print("请输入指令：start 启动自动竞技场，detect 检测窗口，exit 退出程序\n")
     try:
         while True:
             cmd = input("> ").strip().lower()
             # 这个我打算作为挂机模式，后面再精修
             if cmd == "start":
+                run_auto_arena()
+            elif cmd == "detect":
                 result = detect_window_assets_a(
                     confidence=0.7,
                     grayscale=True,
