@@ -28,7 +28,7 @@ def get_assets_dir() -> Path:
     return get_base_dir() / "assets"
 
 # 新增：比例列表与持久化状态路径
-SCALES: List[int] = [50, 67, 75, 80, 90, 100, 110, 125]
+SCALES: List[int] = [50, 65, 67, 75, 80, 90, 100, 110, 125]
 
 def get_scale_state_path() -> Path:
     """获取状态文件路径。在打包模式下，建议放在用户目录下，这里暂存原位或同级data目录。"""
@@ -88,7 +88,7 @@ def save_scale_state(state: Dict[str, Any]) -> None:
 
 def ordered_scales(preferred: int) -> List[int]:
     """根据用户要求的遍历顺序，优先尝试当前推荐比例。"""
-    base_order = [50, 67, 75, 80, 90, 100, 110, 125]
+    base_order = [50, 65, 67, 75, 80, 90, 100, 110, 125]
     preferred = clamp_scale(preferred)
     # 首次尝试推荐比例，其次按固定顺序遍历（避免重复）
     seen = set()

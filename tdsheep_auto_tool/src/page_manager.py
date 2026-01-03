@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""
+f"""
     page_manager.py
     - 功能：管理游戏页面状态，包含页面检测与跳转逻辑
 """
@@ -15,7 +15,8 @@ from .match import (
     get_assets_dir,
     load_scale_state,
     ordered_scales,
-    find_template_path
+    find_template_path,
+    click_template
 )
 
 # 页面常量定义
@@ -23,6 +24,41 @@ PAGE_HOME = 0
 PAGE_FRONTLINE = 1
 PAGE_DEFENSE_LINE = 2
 PAGE_WOLF_PACK = 3
+
+
+def _find_and_click_with_scaling(
+    folder_name: str,
+    stem: str,
+    confidence: float = 0.7,
+    grayscale: bool = True
+) -> bool:
+    """
+    查找并点击图片（支持多比例缩放）。
+    """
+    assets_dir = get_assets_dir() / folder_name
+    if not assets_dir.exists():
+        print(f"[page] 资源目录不存在: {assets_dir}")
+        return False
+
+    state = load_scale_state()
+    recommended_scale = state.get("recommended_scale", 100)
+
+    for s in ordered_scales(recommended_scale):
+        tpl_path = find_template_path(assets_dir, stem, s)
+        if not tpl_path:
+            continue
+        
+        # 尝试点击
+        clicked = click_template(
+            template_path=str(tpl_path),
+            confidence=confidence,
+            grayscale=grayscale
+        )
+        if clicked:
+            print(f"[page] 点击成功: {stem} (scale={s}%)")
+            return True
+            
+    return False
 
 
 def _check_image_with_scaling(
@@ -58,7 +94,6 @@ def _check_image_with_scaling(
         ):
             # 找到匹配
             if s != recommended_scale:
-                # 仅打印调试信息，暂不自动更新全局状态，以免频繁写入
                 print(f"[page] 提示: 图片 {stem} 在 {s}% 比例下匹配成功 (当前推荐: {recommended_scale}%)")
             return True
             
@@ -109,19 +144,29 @@ def _check_page_wolfpack() -> bool:
 def is_target_page(page_id: int) -> bool:
     """
     判断当前是否为目标页面。
-    根据传入的 page_id 调用对应的检测子函数。
+    如果不是目标页面，会自动尝试刷新并跳转，然后返回 False。
     """
+    is_match = False
     if page_id == PAGE_HOME:
-        return _check_page_home()
+        is_match = _check_page_home()
     elif page_id == PAGE_FRONTLINE:
-        return _check_page_frontline()
+        is_match = _check_page_frontline()
     elif page_id == PAGE_DEFENSE_LINE:
-        return _check_page_defenseline()
+        is_match = _check_page_defenseline()
     elif page_id == PAGE_WOLF_PACK:
-        return _check_page_wolfpack()
+        is_match = _check_page_wolfpack()
     else:
         print(f"[page] 未知页面ID: {page_id}")
         return False
+        
+    if is_match:
+        return True
+        
+    # 如果不匹配，执行刷新和跳转逻辑
+    print(f"[page] 页面检测不匹配 (ID={page_id})，开始刷新并跳转...")
+    _refresh_page()
+    # 刷新后默认回到 PAGE_HOME，所以尝试从 HOME 跳转到目标页面
+    return _jump_to_page(PAGE_HOME, page_id)
 
 
 def ensure_page(
@@ -142,33 +187,65 @@ def ensure_page(
     page_name = page_names.get(target_page_id, f"UNKNOWN({target_page_id})")
 
     # 1. 检查当前是否已经在目标页面
+    # 注意：is_target_page 现在包含了自动刷新和跳转尝试
     if is_target_page(target_page_id):
         print(f"[page] 当前已在 {page_name}")
         return True
         
-    print(f"[page] 当前不在 {page_name}，尝试跳转...")
-    
-    # 2. 尝试跳转逻辑（模板，待实现）
-    _jump_to_page(target_page_id)
-    
-    # 3. 刷新/等待后再次检查
-    _refresh_page()
+    # 如果 is_target_page 返回 False，说明第一次检测失败，并且已经尝试了一次刷新和跳转
+    # 我们进入重试循环
     
     for i in range(max_retries):
+        print(f"[page] 页面校验重试 {i+1}/{max_retries}...")
         time.sleep(retry_interval)
+        
+        # 再次调用 is_target_page
+        # 如果还是不匹配，它会再次尝试刷新和跳转
         if is_target_page(target_page_id):
             print(f"[page] 跳转成功，已到达 {page_name}")
             return True
-        print(f"[page] 跳转检测失败，重试 {i+1}/{max_retries}...")
         
     print(f"[page] 无法到达 {page_name}")
     return False
 
-# 内部辅助函数模板（待实现）
-def _jump_to_page(page_id: int):
-    """跳转到指定页面（待实现）"""
-    pass
+# 内部辅助函数
+def _jump_to_page(cur_page_id: int, target_page_id: int) -> bool:
+    """
+    跳转到指定页面。
+    根据当前页面和目标页面，执行对应的点击操作。
+    返回 bool 表示是否执行了跳转操作（或无需跳转）且未报错。
+    """
+    if cur_page_id == target_page_id:
+        print(f"[jump] 起点与终点相同 ({cur_page_id})，无需跳转")
+        return True
+
+    print(f"[jump] 尝试跳转: {cur_page_id} -> {target_page_id}")
+
+    # 逻辑：从 HOME (0) -> FRONTLINE (1)
+    if cur_page_id == PAGE_HOME and target_page_id == PAGE_FRONTLINE:
+        print("[jump] 执行 HOME -> FRONTLINE 跳转...")
+        if _find_and_click_with_scaling("a", "home_to_frontline"):
+            print("[jump] 点击 home_to_frontline 成功，等待页面加载...")
+            time.sleep(2)  # 等待跳转动画
+            return True
+        else:
+            print("[jump] 未找到 home_to_frontline 按钮")
+            return False
+    
+    # 后续可以添加更多跳转逻辑
+    # elif cur_page_id == PAGE_HOME and target_page_id == PAGE_DEFENSE_LINE:
+    #     ...
+    
+    else:
+        print(f"[jump] 尚未实现从 {cur_page_id} 到 {target_page_id} 的跳转路径")
+        return False
 
 def _refresh_page():
-    """刷新页面（待实现）"""
-    pass
+    """刷新页面：点击 page_refresh 并等待 10 秒"""
+    print("[page] 正在刷新页面...")
+    # 查找并点击 page_refresh (位于 assets/a 目录)
+    if _find_and_click_with_scaling("a", "page_refresh"):
+        print("[page] 刷新按钮点击成功，等待 10 秒...")
+        time.sleep(10)
+    else:
+        print("[page] 未找到刷新按钮 (page_refresh)")

@@ -22,7 +22,7 @@ import numpy as np
 from .match import get_assets_dir
 
 # 按需求生成的缩放档
-SCALES: List[int] = [50, 67, 75, 80, 90, 100, 110, 125]
+SCALES: List[int] = [50, 65, 67, 75, 80, 90, 100, 110, 125]
 
 
 def _read_image_unicode(path: Path) -> np.ndarray:
